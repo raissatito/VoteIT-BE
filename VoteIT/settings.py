@@ -28,7 +28,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 CORS_ALLOW_HEADERS = ["*"]
-CORS_ORIGIN_WHITELIST = ['http://localhost:3000',]
+CORS_ORIGIN_WHITELIST = ['http://localhost:3000','http://35.223.128.34:3000']
 CORS_ALLOW_CREDENTIALS = True
 
 
