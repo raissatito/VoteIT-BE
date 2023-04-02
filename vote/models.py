@@ -8,6 +8,7 @@ class VoteRoom(models.Model):
     creator = models.ForeignKey(User, on_delete=models.CASCADE)
     participant = models.ManyToManyField(User, related_name='participant')
     is_private = models.BooleanField(default=False)
+    is_finished = models.BooleanField(default=False)
 
 class VoteOption(models.Model):
     room = models.ForeignKey(VoteRoom, on_delete=models.CASCADE)

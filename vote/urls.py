@@ -8,4 +8,5 @@ urlpatterns = [
     path('get-room/<str:id>', get_room, name='get_vote_room'),
     path('get-vote-option/<str:id>', get_vote_option, name='get_vote_option'),
     path('vote', vote, name='vote'),
+    path('end-vote', end_vote, name='end_vote'),
 ]

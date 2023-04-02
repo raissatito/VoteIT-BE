@@ -28,7 +28,8 @@ def create_room(request):
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             "room_list",
-            {"type": "send_room_list", "room_list": VoteRoom.objects.filter(is_private=False).order_by("-room_id").values()[::1]}        )
+            {"type": "send_room_list", "room_list": VoteRoom.objects.filter(is_private=False, is_finished=False).order_by("-room_id").values()[::1]}
+        )
         return JsonResponse({'message': 'Room Created'}, status=status.HTTP_201_CREATED)
     else:
         return JsonResponse({'message': 'Authentication Failed'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -47,7 +48,7 @@ def create_option(request):
 @csrf_exempt
 @api_view(['GET'])
 def get_all_rooms(request):
-    rooms = VoteRoom.objects.filter(is_private=False).order_by("-room_id").values()[::1]
+    rooms = VoteRoom.objects.filter(is_private=False, is_finished=False).order_by("-room_id").values()[::1]
     return JsonResponse({"rooms": rooms}, status=status.HTTP_200_OK)
 
 @csrf_exempt
@@ -93,9 +94,8 @@ def vote(request):
 
         channel_layer = get_channel_layer()
 
-
         voteRoom = new_option.room
-        votes = VoteOption.objects.filter(room=voteRoom).order_by("-id")
+        votes = VoteOption.objects.filter(room=voteRoom).order_by("id")
         serializer = VotesSerializer(votes, many=True)
         async_to_sync(channel_layer.group_send)(
             'vote_%s' % new_option.room.room_id,
@@ -103,6 +103,44 @@ def vote(request):
         )
 
         return JsonResponse({"message": "Vote Added"}, status=status.HTTP_200_OK)
+    else:
+        return JsonResponse({'message': 'Authentication Failed'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+@csrf_exempt
+@api_view(['POST'])
+def end_vote(request):
+    user = is_authorized(request)
+    if user is not None:
+        deserialize = json.loads(request.body)
+        room_id = deserialize['room_id']
+        room = VoteRoom.objects.get(room_id=room_id)
+
+        if room.creator != user:
+            return JsonResponse({"message": "You are not the creator"}, status=status.HTTP_401_UNAUTHORIZED)
+        else:
+            room.is_finished = True
+            room.save()
+
+            rooms = VoteRoom.objects.filter(room_id=room_id).values()[0]
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                'vote_%s' % room_id,
+                {"type": "send_room_ended", "rooms": rooms}
+            )
+
+            list_user = room.participant.all()
+            async_to_sync(channel_layer.group_send)(
+                "room_list",
+                {"type": "send_room_list", "room_list": VoteRoom.objects.filter(is_private=False, is_finished=False).order_by("-room_id").values()[::1]}
+            )
+            for user in list_user:
+                async_to_sync(channel_layer.group_send)(
+                    'user_%s' % user.username,
+                    {"type": "send_notification", "vote_room": rooms}
+                )
+
+            return JsonResponse({"message": "Vote Ended"}, status=status.HTTP_200_OK)
+
     else:
         return JsonResponse({'message': 'Authentication Failed'}, status=status.HTTP_401_UNAUTHORIZED)
     
